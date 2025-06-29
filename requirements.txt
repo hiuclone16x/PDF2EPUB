@@ -1,3 +1,4 @@
 PyMuPDF
 EbookLib
-Pillow 
+Pillow
+beautifulsoup4 

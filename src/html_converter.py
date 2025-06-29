@@ -1,73 +1,93 @@
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import re
+from bs4 import BeautifulSoup, NavigableString
+
+# Giả định image_optimizer.py nằm cùng cấp và có thể import
+from image_optimizer import ImageOptimizer
 
 class HTMLConverter:
     """
     Lớp chịu trách nhiệm chuyển đổi dữ liệu trang (đã được trích xuất)
-    thành các file HTML.
+    thành các file HTML, đồng thời xử lý từ khóa và tối ưu hóa ảnh.
     """
 
-    def __init__(self, book_title: str, output_dir: str):
+    def __init__(self, book_title: str, output_dir: str, image_optimizer: Optional[ImageOptimizer] = None):
         """
         Khởi tạo HTMLConverter.
 
         Args:
-            book_title (str): Tiêu đề của sách, dùng để tạo tiêu đề cho file HTML.
+            book_title (str): Tiêu đề của sách.
             output_dir (str): Thư mục để lưu các file HTML và hình ảnh.
+            image_optimizer (Optional[ImageOptimizer]): Đối tượng để tối ưu hóa ảnh.
         """
         self.book_title = book_title
         self.output_dir = output_dir
         self.image_dir = os.path.join(self.output_dir, "images")
+        self.image_optimizer = image_optimizer
         
-        # Tạo các thư mục output nếu chúng chưa tồn tại
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.image_dir, exist_ok=True)
         print(f"Thư mục output đã sẵn sàng tại: '{self.output_dir}'")
 
-    def create_html_from_page(self, page_data: Dict[str, Any]) -> str:
+    def _remove_keywords_from_html(self, html_content: str, keywords: List[str]) -> str:
+        """Sử dụng BeautifulSoup để xóa từ khóa một cách an toàn."""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        # Tìm tất cả các chuỗi văn bản trong cây HTML
+        for text_node in soup.find_all(string=True):
+            if isinstance(text_node, NavigableString):
+                new_text = text_node
+                for keyword in keywords:
+                    # re.IGNORECASE để không phân biệt hoa thường
+                    new_text = re.sub(r'\b' + re.escape(keyword) + r'\b', '', new_text, flags=re.IGNORECASE)
+                text_node.replace_with(new_text)
+        return str(soup)
+
+    def create_html_from_page(
+        self, 
+        page_data: Dict[str, Any],
+        keywords_to_remove: Optional[List[str]] = None
+    ) -> str:
         """
         Tạo một file HTML từ dữ liệu của một trang.
-
-        Lưu hình ảnh vào thư mục 'images' và thay thế các tham chiếu hình ảnh
-        trong nội dung HTML.
-
-        Args:
-            page_data (Dict[str, Any]): Dictionary chứa dữ liệu của trang,
-                                        bao gồm 'page_number', 'text', 'images'.
-
-        Returns:
-            str: Đường dẫn đến file HTML đã được tạo.
         """
         page_number = page_data["page_number"]
         html_content = page_data["text"]
 
-        # Lưu hình ảnh và cập nhật đường dẫn trong HTML
+        # 1. Loại bỏ từ khóa nếu có
+        if keywords_to_remove and html_content:
+            html_content = self._remove_keywords_from_html(html_content, keywords_to_remove)
+
+        # 2. Lưu và tối ưu hóa hình ảnh
+        soup = BeautifulSoup(html_content, 'html.parser')
+        img_tags = soup.find_all('img')
+
         for i, image_info in enumerate(page_data["images"]):
-            image_ext = image_info["ext"]
             image_data = image_info["data"]
-            # Đặt tên file ảnh duy nhất cho mỗi trang để tránh trùng lặp
+            
+            # Tối ưu hóa ảnh nếu có optimizer
+            if self.image_optimizer:
+                optimized_data = self.image_optimizer.optimize_image(image_data)
+                image_ext = "jpeg" # Optimizer chuyển ảnh sang JPEG
+            else:
+                optimized_data = image_data
+                image_ext = image_info["ext"]
+
             image_filename = f"p{page_number}_img{i}.{image_ext}"
             image_path = os.path.join(self.image_dir, image_filename)
 
             with open(image_path, "wb") as f:
-                f.write(image_data)
+                f.write(optimized_data)
             
-            # Tìm kiếm các thẻ <img> trong HTML trích xuất từ PyMuPDF và thay thế
-            # src của chúng. PyMuPDF thường tạo ra các src trống hoặc không hợp lệ.
-            # Chúng ta sẽ tìm thẻ img thứ i và thay thế src của nó.
-            # Đây là một cách tiếp cận đơn giản, có thể cần cải tiến nếu PDF phức tạp.
-            img_tag_pattern = re.compile(r"<img[^>]*>")
-            img_tags = img_tag_pattern.findall(html_content)
-
+            # Cập nhật src trong tag <img> tương ứng
             if i < len(img_tags):
-                original_tag = img_tags[i]
-                # Đường dẫn tương đối từ file HTML đến file ảnh
                 relative_image_path = os.path.join("images", image_filename).replace("\\", "/")
-                new_tag = f'<img src="{relative_image_path}" alt="Hình ảnh từ trang {page_number}" />'
-                html_content = html_content.replace(original_tag, new_tag, 1)
+                img_tags[i]['src'] = relative_image_path
+                img_tags[i]['alt'] = f"Hình ảnh từ trang {page_number}"
+        
+        html_content = str(soup)
 
-        # Tạo nội dung HTML hoàn chỉnh
+        # 3. Tạo nội dung HTML hoàn chỉnh
         final_html = f"""
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">

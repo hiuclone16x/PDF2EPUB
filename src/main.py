@@ -7,6 +7,8 @@ import sys
 from pdf_processor import PDFProcessor
 from html_converter import HTMLConverter
 from epub_packager import EpubPackager
+from image_optimizer import ImageOptimizer
+from utils import parse_page_ranges
 
 def main():
     """
@@ -14,46 +16,90 @@ def main():
     """
     # 1. Thiết lập và phân tích các tham số dòng lệnh
     parser = argparse.ArgumentParser(
-        description="Một công cụ dòng lệnh để chuyển đổi file PDF sang định dạng EPUB 3.0."
+        description="Công cụ dòng lệnh để chuyển đổi file PDF sang định dạng EPUB 3.0.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    # Tham số bắt buộc
+    parser.add_argument("input_file", help="Đường dẫn đến file PDF đầu vào.")
+    parser.add_argument("output_file", help="Đường dẫn để lưu file EPUB đầu ra. Phần mở rộng .epub sẽ được tự động thêm vào nếu thiếu.")
+    
+    # Tham số tùy chọn Sprint 2
+    parser.add_argument(
+        "--skip-pages",
+        type=str,
+        default="",
+        help='Chuỗi các trang cần bỏ qua. \nVí dụ: "1,3,5-7" sẽ bỏ qua trang 1, 3, 5, 6, 7.'
     )
     parser.add_argument(
-        "input_file", 
-        help="Đường dẫn đến file PDF đầu vào."
+        "--remove-keywords",
+        nargs='*',
+        default=[],
+        help='Danh sách các từ khóa cần loại bỏ khỏi văn bản, phân tách bởi dấu cách. \nVí dụ: --remove-keywords "Bản quyền" "Draft"'
     )
     parser.add_argument(
-        "output_file", 
-        help="Đường dẫn để lưu file EPUB đầu ra. Nếu không có phần mở rộng .epub, nó sẽ được tự động thêm vào."
+        "--image-quality",
+        type=int,
+        default=85,
+        help="Chất lượng hình ảnh sau khi nén (1-100). Mặc định: 85."
     )
+    parser.add_argument(
+        "--image-max-width",
+        type=int,
+        default=1024,
+        help="Chiều rộng tối đa cho hình ảnh (pixels). Mặc định: 1024."
+    )
+    parser.add_argument(
+        "--no-image-optimization",
+        action="store_true",
+        help="Tắt hoàn toàn tính năng tối ưu hóa hình ảnh."
+    )
+    
     args = parser.parse_args()
 
-    input_path = args.input_file
-    output_path = args.output_file
+    # --- Bắt đầu luồng thực thi ---
+    if not args.output_file.lower().endswith('.epub'):
+        args.output_file += '.epub'
 
-    # Đảm bảo file output có phần mở rộng .epub
-    if not output_path.lower().endswith('.epub'):
-        output_path += '.epub'
-
-    # Tạo một thư mục tạm thời để chứa các file trung gian (HTML, CSS, images)
     temp_dir = tempfile.mkdtemp(prefix="pdf2epub_")
     print(f"Thư mục làm việc tạm thời: {temp_dir}")
 
     try:
         # 2. Xử lý PDF
         print("-" * 20)
-        processor = PDFProcessor(pdf_path=input_path)
-        pages_data = processor.extract_content_by_page()
+        processor = PDFProcessor(pdf_path=args.input_file)
+        all_pages_data = processor.extract_content_by_page()
+
+        # Lọc các trang cần bỏ qua
+        pages_to_skip = parse_page_ranges(args.skip_pages)
+        pages_to_process = [page for page in all_pages_data if page['page_number'] not in pages_to_skip]
+        if pages_to_skip:
+            print(f"Đã bỏ qua các trang: {sorted(list(pages_to_skip))}")
 
         # 3. Chuyển đổi sang HTML
         print("-" * 20)
-        # Lấy tên file không có phần mở rộng để làm tiêu đề sách
-        book_title = os.path.splitext(os.path.basename(input_path))[0]
-        converter = HTMLConverter(book_title=book_title, output_dir=temp_dir)
+        book_title = os.path.splitext(os.path.basename(args.input_file))[0]
+        
+        # Khởi tạo optimizer nếu được bật
+        optimizer = None
+        if not args.no_image_optimization:
+            optimizer = ImageOptimizer(quality=args.image_quality, max_width=args.image_max_width)
+            print(f"Tối ưu hóa hình ảnh được BẬT (chất lượng: {args.image_quality}, rộng tối đa: {args.image_max_width}px).")
+        else:
+            print("Tối ưu hóa hình ảnh đã được TẮT.")
+
+        converter = HTMLConverter(book_title=book_title, output_dir=temp_dir, image_optimizer=optimizer)
         converter.create_stylesheet()
         
         html_files = []
-        for page_data in pages_data:
-            html_path = converter.create_html_from_page(page_data)
+        for page_data in pages_to_process:
+            html_path = converter.create_html_from_page(
+                page_data, 
+                keywords_to_remove=args.remove_keywords
+            )
             html_files.append(html_path)
+        
+        if args.remove_keywords:
+            print(f"Đã thực hiện loại bỏ các từ khóa: {args.remove_keywords}")
 
         # 4. Đóng gói thành EPUB
         print("-" * 20)
@@ -61,10 +107,9 @@ def main():
         packager.create_epub(
             html_files=html_files,
             resource_dir=temp_dir,
-            output_path=output_path
+            output_path=args.output_file
         )
 
-        # Đóng file PDF sau khi đã xử lý xong
         processor.close()
         print("-" * 20)
         print("🎉 Quá trình chuyển đổi đã hoàn tất thành công! 🎉")
