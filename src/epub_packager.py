@@ -1,6 +1,6 @@
 import os
 from ebooklib import epub
-from typing import List
+from typing import List, Optional
 import uuid
 import logging
 
@@ -25,7 +25,7 @@ class EpubPackager:
         # Tạo một identifier duy nhất cho sách
         self.book.set_identifier(str(uuid.uuid4()))
 
-    def create_epub(self, html_files: List[str], resource_dir: str, output_path: str):
+    def create_epub(self, html_files: List[str], resource_dir: str, output_path: str, dynamic_toc: Optional[List[tuple]] = None):
         """
         Tạo file EPUB từ các tài nguyên đã cho.
 
@@ -33,6 +33,7 @@ class EpubPackager:
             html_files (List[str]): Danh sách các đường dẫn đến file HTML (đã được sắp xếp).
             resource_dir (str): Thư mục chứa các tài nguyên (CSS, images).
             output_path (str): Đường dẫn để lưu file EPUB cuối cùng.
+            dynamic_toc (Optional[List[tuple]], optional): Danh sách các tiêu đề để tạo mục lục động.
         """
         logging.info("Bắt đầu quá trình đóng gói EPUB...")
         
@@ -61,6 +62,9 @@ class EpubPackager:
             
             chapter = epub.EpubHtml(title=f'Trang {page_number}', file_name=file_name, lang='vi')
             chapter.content = html_content
+            # Gán một ID duy nhất cho mỗi chapter để TOC có thể tham chiếu
+            chapter.id = f"page_{page_number}"
+            
             if stylesheet:
                 chapter.add_item(stylesheet) # Liên kết stylesheet với chapter
             
@@ -94,7 +98,35 @@ class EpubPackager:
         self.book.spine = ['nav'] + chapters  # 'nav' là trang mục lục sẽ được tạo tự động
 
         # Tạo mục lục (Table of Contents)
-        self.book.toc = chapters
+        if dynamic_toc:
+            logging.info(f"Đang tạo mục lục động từ {len(dynamic_toc)} tiêu đề đã phát hiện...")
+            # Tạo mục lục từ danh sách tiêu đề đã phát hiện
+            toc_items = []
+            for level, title, page_num in dynamic_toc:
+                # Tìm chapter tương ứng với số trang
+                target_chapter = next((c for c in chapters if c.id == f"page_{page_num}"), None)
+                if target_chapter:
+                    if level == 1:
+                        section = epub.Section(title)
+                        link = epub.Link(target_chapter.file_name, title, f"toc_{len(toc_items)}")
+                        toc_items.append((section, link))
+                    elif level > 1 and toc_items:
+                        # Thêm như một mục con của mục cấp 1 gần nhất
+                        parent_section, _ = toc_items[-1]
+                        link = epub.Link(target_chapter.file_name, title, f"toc_{len(toc_items)}_{level}")
+                        # EbookLib cấu trúc TOC dạng tuple(Section, (Link, Link, ...))
+                        # Cần refactor lại cách thêm mục con
+                        # Logic hiện tại chỉ hỗ trợ 2 cấp độ đơn giản
+                        if isinstance(parent_section, epub.Section):
+                            # Nếu mục cuối là Section, tạo tuple mới
+                            if len(toc_items[-1]) == 2:
+                                toc_items[-1] = (parent_section, (toc_items[-1][1], link))
+                            else: # Nếu đã là tuple, nối thêm link
+                                toc_items[-1] = (parent_section, toc_items[-1][1] + (link,))
+            self.book.toc = toc_items
+        else:
+            # Mục lục mặc định: mỗi trang là một mục
+            self.book.toc = chapters
 
         # Thêm mục lục NCX và Nav Point (cần thiết cho EPUB 3)
         self.book.add_item(epub.EpubNcx())

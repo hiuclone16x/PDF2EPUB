@@ -10,6 +10,8 @@ from html_converter import HTMLConverter
 from epub_packager import EpubPackager
 from image_optimizer import ImageOptimizer
 from utils import parse_page_ranges
+from layout_analyzer import LayoutAnalyzer
+from toc_generator import TOCGenerator
 
 def setup_logging():
     """Cấu hình hệ thống logging để ghi ra file và console."""
@@ -92,6 +94,24 @@ def main():
         remove_keywords_str = input("➡️  Nhập các từ khóa cần xóa, cách nhau bởi dấu phẩy (,) [Bỏ trống nếu không có]: ").strip()
         remove_keywords = [k.strip() for k in remove_keywords_str.split(',') if k.strip()]
 
+        # Cấu hình phân tích bố cục
+        layout_analyzer = None
+        user_wants_layout_analysis = input("➡️  Bạn có muốn phân tích bố cục (cột)? (y/n) [Mặc định: y]: ").strip().lower()
+        if user_wants_layout_analysis in ('', 'y', 'yes'):
+            logging.info("Phân tích bố cục được BẬT.")
+            layout_analyzer = LayoutAnalyzer()
+        else:
+            logging.info("Phân tích bố cục đã được TẮT.")
+
+        # Cấu hình tạo mục lục tự động
+        toc_generator = None
+        user_wants_toc_generation = input("➡️  Bạn có muốn tạo mục lục tự động? (y/n) [Mặc định: y]: ").strip().lower()
+        if user_wants_toc_generation in ('', 'y', 'yes'):
+            logging.info("Tạo mục lục tự động được BẬT.")
+            toc_generator = TOCGenerator()
+        else:
+            logging.info("Tạo mục lục tự động đã được TẮT.")
+
         # Cấu hình tối ưu hóa ảnh
         optimizer = None
         user_wants_optimization = input("➡️  Bạn có muốn tối ưu hóa hình ảnh không? (y/n) [Mặc định: y]: ").strip().lower()
@@ -130,7 +150,7 @@ def main():
         # 2. Xử lý PDF
         logging.info("-" * 20)
         processor = PDFProcessor(pdf_path=input_path)
-        all_pages_data = processor.extract_content_by_page()
+        all_pages_data = processor.extract_structured_content()
 
         # Lọc các trang cần bỏ qua
         pages_to_skip = parse_page_ranges(skip_pages_str)
@@ -138,11 +158,24 @@ def main():
         if pages_to_skip:
             logging.info(f"Đã bỏ qua các trang: {sorted(list(pages_to_skip))}")
 
+        # Phát hiện mục lục nếu người dùng yêu cầu
+        headings = []
+        if toc_generator:
+            logging.info("-" * 20)
+            logging.info("Bắt đầu quá trình phát hiện tiêu đề để tạo mục lục...")
+            headings = toc_generator.detect_headings(pages_to_process)
+            logging.info(f"Đã phát hiện được {len(headings)} tiêu đề.")
+
         # 3. Chuyển đổi sang HTML
         logging.info("-" * 20)
         book_title = os.path.splitext(os.path.basename(input_path))[0]
         
-        converter = HTMLConverter(book_title=book_title, output_dir=temp_dir, image_optimizer=optimizer)
+        converter = HTMLConverter(
+            book_title=book_title, 
+            output_dir=temp_dir, 
+            image_optimizer=optimizer,
+            layout_analyzer=layout_analyzer
+        )
         converter.create_stylesheet()
         
         html_files = []
@@ -162,7 +195,8 @@ def main():
         packager.create_epub(
             html_files=html_files,
             resource_dir=temp_dir,
-            output_path=output_path
+            output_path=output_path,
+            dynamic_toc=headings
         )
 
         processor.close()

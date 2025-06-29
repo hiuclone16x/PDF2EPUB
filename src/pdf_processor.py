@@ -36,20 +36,23 @@ class PDFProcessor:
         """
         return len(self.document)
 
-    def extract_content_by_page(self) -> List[Dict[str, Any]]:
+    def extract_structured_content(self) -> List[Dict[str, Any]]:
         """
-        Trích xuất nội dung từ từng trang của file PDF.
+        Trích xuất nội dung có cấu trúc chi tiết từ từng trang của file PDF.
 
-        Phương thức này sẽ lặp qua từng trang, lấy ra nội dung văn bản dưới dạng
-        HTML để giữ lại cấu trúc cơ bản và danh sách các hình ảnh.
+        Phương thức này lặp qua từng trang, trích xuất văn bản dưới dạng
+        dictionary (`dict`) để lấy thông tin chi tiết về vị trí, font chữ,
+        kích thước, và nội dung của từng khối văn bản. Đồng thời trích xuất
+        cả hình ảnh.
 
         Returns:
             List[Dict[str, Any]]: Một danh sách các dictionary, mỗi dictionary
             đại diện cho một trang và chứa:
             - 'page_number': số thứ tự trang (bắt đầu từ 1)
-            - 'text': nội dung văn bản của trang dưới dạng HTML
-            - 'images': danh sách các hình ảnh, mỗi hình ảnh là một dictionary
-                        chứa 'xref', 'data', và 'ext' (phần mở rộng file).
+            - 'page_width': chiều rộng của trang
+            - 'page_height': chiều cao của trang
+            - 'content_dict': nội dung văn bản dưới dạng dictionary có cấu trúc
+            - 'images': danh sách các hình ảnh trên trang.
         """
         content_list = []
         total_pages = self.get_total_pages()
@@ -58,9 +61,9 @@ class PDFProcessor:
             page = self.document.load_page(page_num)
             logging.info(f"Đang xử lý trang {page_num + 1}/{total_pages}...")
 
-            # Trích xuất văn bản dưới dạng HTML để bảo toàn cấu trúc cơ bản
-            # Đây là một phương pháp nâng cao hơn get_text("text")
-            text_content = page.get_text("html") # type: ignore
+            # Trích xuất văn bản dưới dạng dictionary để lấy metadata chi tiết
+            # về vị trí, font, v.v.
+            structured_text = page.get_text("dict") # type: ignore
 
             # Trích xuất hình ảnh
             image_list = []
@@ -78,11 +81,13 @@ class PDFProcessor:
 
             content_list.append({
                 "page_number": page_num + 1,
-                "text": text_content,
+                "page_width": page.rect.width,
+                "page_height": page.rect.height,
+                "content_dict": structured_text,
                 "images": image_list
             })
         
-        logging.info("Hoàn tất trích xuất nội dung từ file PDF.")
+        logging.info("Hoàn tất trích xuất nội dung có cấu trúc từ file PDF.")
         return content_list
 
     def close(self):

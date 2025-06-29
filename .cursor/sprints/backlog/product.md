@@ -64,4 +64,42 @@
 1. **Story 3.1:** Xây dựng hệ thống test tự động (unit & integration).
 2. **Story 3.2:** Hoàn thiện hệ thống xử lý lỗi và logging.
 3. **Story 3.3:** Đóng gói ứng dụng để có thể cài đặt dễ dàng.
-4. **Story 3.4:** Viết tài liệu hướng dẫn đầy đủ cho người dùng. 
+4. **Story 3.4:** Viết tài liệu hướng dẫn đầy đủ cho người dùng.
+
+# Epic 4: Phân tích và Tái tạo Bố cục Nâng cao
+
+## Giá trị kinh doanh THỰC TẾ
+- **Vấn đề giải quyết:** Các tài liệu PDF học thuật, báo cáo, tạp chí thường có bố cục nhiều cột và bảng biểu. Việc chuyển đổi thông thường sẽ làm xáo trộn hoàn toàn thứ tự đọc, khiến nội dung trở nên vô nghĩa.
+- **Tác động tới user:** Cho phép người dùng đọc các tài liệu có bố cục phức tạp một cách tự nhiên và đúng trình tự trên thiết bị đọc sách.
+- **Chỉ số thành công:** Chuyển đổi thành công và giữ đúng thứ tự đọc cho ít nhất 80% các tài liệu có bố cục 2 cột. Chuyển đổi đúng cấu trúc cho 70% các bảng biểu đơn giản.
+
+## Phạm vi kỹ thuật (KHÔNG MOCK)
+- **Components thật cần xây dựng:**
+    - Module `LayoutAnalyzer`: Phân tích các khối văn bản (`blocks`) từ `PyMuPDF` dựa trên tọa độ (x, y) để xác định các cột và bảng.
+    - Logic tái cấu trúc HTML: Sắp xếp lại các khối văn bản theo đúng thứ tự đọc và bọc chúng trong các thẻ `<div>` hoặc `<table>` thích hợp.
+- **Integration points thực tế:** `LayoutAnalyzer` sẽ được tích hợp vào giữa `PDFProcessor` và `HTMLConverter`. `PDFProcessor` cần được nâng cấp để trích xuất dữ liệu có kèm tọa độ (`get_text("dict")`).
+- **Performance requirements cụ thể:** Quá trình phân tích không làm tăng thời gian chuyển đổi tổng thể quá 50% đối với các file có cấu trúc phức tạp.
+
+## Stories breakdown (MỖI STORY PHẢI THẬT)
+1. **Story 4.1:** Nâng cấp bộ trích xuất PDF để lấy dữ liệu có metadata về vị trí.
+2. **Story 4.2:** Implement thuật toán nhận dạng và sắp xếp lại nội dung theo cột.
+3. **Story 4.3:** Implement thuật toán nhận dạng và chuyển đổi bảng biểu đơn giản sang thẻ `<table>` HTML.
+
+# Epic 5: Tự động Tạo Mục lục (TOC) từ Nội dung
+
+## Giá trị kinh doanh THỰC TẾ
+- **Vấn đề giải quyết:** Các file PDF dài nhưng không có mục lục (bookmark) sẵn khiến việc điều hướng vô cùng khó khăn.
+- **Tác động tới user:** Cung cấp một mục lục (TOC) có thể điều hướng được trong file EPUB, giúp người dùng dễ dàng chuyển đến các chương, mục mà họ quan tâm.
+- **Chỉ số thành công:** Tự động tạo ra mục lục hợp lệ cho >90% các tài liệu có cấu trúc tiêu đề rõ ràng (ví dụ: "Chương 1", "1.1 Giới thiệu").
+
+## Phạm vi kỹ thuật (KHÔNG MOCK)
+- **Components thật cần xây dựng:**
+    - Module `TOCGenerator`: Phân tích các thuộc tính của văn bản (kích thước font, độ đậm, kiểu chữ) và nội dung (các mẫu regex như "Chương X", "Phần Y") để xác định các tiêu đề.
+    - Logic tạo cấu trúc TOC phân cấp: Xây dựng một cây mục lục dựa trên các cấp độ tiêu đề đã nhận dạng.
+- **Integration points thực tế:** `PDFProcessor` cần trích xuất thêm thông tin về font. `TOCGenerator` sẽ được gọi trong `main.py` và kết quả của nó sẽ được truyền vào `EpubPackager`.
+- **Performance requirements cụ thể:** Tốc độ quét tiêu đề không ảnh hưởng đáng kể đến thời gian xử lý chung.
+
+## Stories breakdown (MỖI STORY PHẢI THẬT)
+1. **Story 5.1:** Nâng cấp bộ trích xuất PDF để lấy metadata về font chữ.
+2. **Story 5.2:** Implement bộ quy tắc (heuristic-based engine) để nhận dạng tiêu đề.
+3. **Story 5.3:** Tích hợp cấu trúc TOC đã nhận dạng vào file EPUB. 

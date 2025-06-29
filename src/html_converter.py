@@ -7,6 +7,7 @@ import logging
 
 # Giả định image_optimizer.py nằm cùng cấp và có thể import
 from image_optimizer import ImageOptimizer
+from layout_analyzer import LayoutAnalyzer
 
 class HTMLConverter:
     """
@@ -14,7 +15,9 @@ class HTMLConverter:
     thành các file HTML, đồng thời xử lý từ khóa và tối ưu hóa ảnh.
     """
 
-    def __init__(self, book_title: str, output_dir: str, image_optimizer: Optional[ImageOptimizer] = None):
+    def __init__(self, book_title: str, output_dir: str, 
+                 image_optimizer: Optional[ImageOptimizer] = None,
+                 layout_analyzer: Optional[LayoutAnalyzer] = None):
         """
         Khởi tạo HTMLConverter.
 
@@ -22,11 +25,13 @@ class HTMLConverter:
             book_title (str): Tiêu đề của sách.
             output_dir (str): Thư mục để lưu các file HTML và hình ảnh.
             image_optimizer (Optional[ImageOptimizer]): Đối tượng để tối ưu hóa ảnh.
+            layout_analyzer (Optional[LayoutAnalyzer]): Đối tượng để phân tích bố cục.
         """
         self.book_title = book_title
         self.output_dir = output_dir
         self.image_dir = os.path.join(self.output_dir, "images")
         self.image_optimizer = image_optimizer
+        self.layout_analyzer = layout_analyzer
         
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.image_dir, exist_ok=True)
@@ -45,6 +50,36 @@ class HTMLConverter:
                 text_node.replace_with(new_text) # type: ignore
         return str(soup)
 
+    def _generate_html_from_dict(self, page_data: Dict[str, Any]) -> str:
+        """
+        Tạo nội dung HTML từ cấu trúc dict do PyMuPDF trả về.
+        Nếu có layout_analyzer, nó sẽ được dùng để sắp xếp lại các khối.
+        """
+        html_body = ""
+        
+        content_dict = page_data.get("content_dict", {})
+        page_blocks = content_dict.get("blocks", [])
+
+        # Phân tích bố cục nếu có analyzer
+        if self.layout_analyzer:
+            logging.info(f"Sử dụng LayoutAnalyzer cho trang {page_data['page_number']}...")
+            page_width = page_data.get('page_width', 0)
+            processed_blocks = self.layout_analyzer.analyze_columns(page_blocks, page_width)
+        else:
+            processed_blocks = page_blocks
+
+        for block in processed_blocks:
+            if block.get("type") == 0: # Block văn bản
+                html_body += "<p>"
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        # TODO: Sau này sẽ sử dụng `span['font']`, `span['size']`
+                        # để định dạng văn bản một cách thông minh hơn.
+                        html_body += span.get("text", "") + " "
+                    html_body += "<br/>" # Thêm ngắt dòng sau mỗi line
+                html_body += "</p>\n"
+        return html_body
+
     def create_html_from_page(
         self, 
         page_data: Dict[str, Any],
@@ -54,13 +89,21 @@ class HTMLConverter:
         Tạo một file HTML từ dữ liệu của một trang.
         """
         page_number = page_data["page_number"]
-        html_content = page_data["text"]
+        
+        # 1. Sinh HTML từ cấu trúc dict
+        # Đây là thay đổi lớn so với phiên bản cũ
+        html_content = self._generate_html_from_dict(page_data)
+        
+        # Thêm placeholders cho hình ảnh để BeautifulSoup có thể tìm thấy
+        num_images = len(page_data["images"])
+        html_content += "\n" + '<img>' * num_images
 
-        # 1. Loại bỏ từ khóa nếu có
+
+        # 2. Loại bỏ từ khóa nếu có
         if keywords_to_remove and html_content:
             html_content = self._remove_keywords_from_html(html_content, keywords_to_remove)
 
-        # 2. Lưu và tối ưu hóa hình ảnh
+        # 3. Lưu và tối ưu hóa hình ảnh
         soup = BeautifulSoup(html_content, 'html.parser')
         img_tags = soup.find_all('img')
 
@@ -89,7 +132,7 @@ class HTMLConverter:
         
         html_content = str(soup)
 
-        # 3. Tạo nội dung HTML hoàn chỉnh
+        # 4. Tạo nội dung HTML hoàn chỉnh
         final_html = f"""
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
