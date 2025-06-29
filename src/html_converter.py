@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, List, Optional
 import re
 from bs4 import BeautifulSoup, NavigableString
+import logging
 
 # Giả định image_optimizer.py nằm cùng cấp và có thể import
 from image_optimizer import ImageOptimizer
@@ -28,7 +29,7 @@ class HTMLConverter:
         
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.image_dir, exist_ok=True)
-        print(f"Thư mục output đã sẵn sàng tại: '{self.output_dir}'")
+        logging.info(f"Thư mục output đã sẵn sàng tại: '{self.output_dir}'")
 
     def _remove_keywords_from_html(self, html_content: str, keywords: List[str]) -> str:
         """Sử dụng BeautifulSoup để xóa từ khóa một cách an toàn."""
@@ -107,7 +108,7 @@ class HTMLConverter:
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(final_html)
             
-        print(f"Đã tạo file HTML: '{html_filename}'")
+        logging.info(f"Đã tạo file HTML: '{html_filename}'")
         return html_path
 
     def create_stylesheet(self):
@@ -136,5 +137,5 @@ p {
         css_path = os.path.join(self.output_dir, "style.css")
         with open(css_path, "w", encoding="utf-8") as f:
             f.write(css_content)
-        print("Đã tạo file CSS 'style.css'.")
+        logging.info("Đã tạo file CSS 'style.css'.")
         return "style.css" 

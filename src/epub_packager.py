@@ -2,6 +2,7 @@ import os
 from ebooklib import epub
 from typing import List
 import uuid
+import logging
 
 class EpubPackager:
     """
@@ -33,7 +34,7 @@ class EpubPackager:
             resource_dir (str): Thư mục chứa các tài nguyên (CSS, images).
             output_path (str): Đường dẫn để lưu file EPUB cuối cùng.
         """
-        print("Bắt đầu quá trình đóng gói EPUB...")
+        logging.info("Bắt đầu quá trình đóng gói EPUB...")
         
         items = []
         chapters = []
@@ -48,7 +49,7 @@ class EpubPackager:
             items.append(stylesheet)
         else:
             stylesheet = None # Không có stylesheet
-            print("Cảnh báo: Không tìm thấy file style.css.")
+            logging.warning("Cảnh báo: Không tìm thấy file style.css.")
 
         # 2. Thêm các trang HTML (dưới dạng chapters)
         for i, html_path in enumerate(html_files):
@@ -86,7 +87,7 @@ class EpubPackager:
                 )
                 self.book.add_item(image_item)
         else:
-             print("Cảnh báo: Không tìm thấy thư mục 'images'.")
+             logging.warning("Cảnh báo: Không tìm thấy thư mục 'images'.")
 
 
         # 4. Định nghĩa cấu trúc sách (spine và table of contents)
@@ -101,4 +102,4 @@ class EpubPackager:
 
         # 5. Viết ra file .epub
         epub.write_epub(output_path, self.book, {})
-        print(f"Đã tạo thành công file EPUB tại: '{output_path}'") 
+        logging.info(f"Đã tạo thành công file EPUB tại: '{output_path}'") 

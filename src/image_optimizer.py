@@ -1,5 +1,6 @@
 from PIL import Image
 import io
+import logging
 
 class ImageOptimizer:
     """
@@ -48,5 +49,5 @@ class ImageOptimizer:
                 img.save(output_buffer, format='JPEG', quality=self.quality, optimize=True)
                 return output_buffer.getvalue()
         except Exception as e:
-            print(f"Cảnh báo: Không thể tối ưu hóa hình ảnh. Sử dụng ảnh gốc. Lỗi: {e}")
+            logging.warning(f"Không thể tối ưu hóa hình ảnh. Sử dụng ảnh gốc. Lỗi: {e}")
             return image_bytes 

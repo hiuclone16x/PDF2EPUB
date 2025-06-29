@@ -1,6 +1,7 @@
 import fitz  # PyMuPDF
 import os
 from typing import List, Dict, Any
+import logging
 
 class PDFProcessor:
     """
@@ -23,8 +24,8 @@ class PDFProcessor:
         
         self.pdf_path = pdf_path
         self.document = fitz.open(pdf_path)
-        print(f"Đã mở thành công file PDF: {os.path.basename(pdf_path)}")
-        print(f"Tổng số trang: {self.get_total_pages()}")
+        logging.info(f"Đã mở thành công file PDF: {os.path.basename(pdf_path)}")
+        logging.info(f"Tổng số trang: {self.get_total_pages()}")
 
     def get_total_pages(self) -> int:
         """
@@ -55,7 +56,7 @@ class PDFProcessor:
 
         for page_num in range(total_pages):
             page = self.document.load_page(page_num)
-            print(f"Đang xử lý trang {page_num + 1}/{total_pages}...")
+            logging.info(f"Đang xử lý trang {page_num + 1}/{total_pages}...")
 
             # Trích xuất văn bản dưới dạng HTML để bảo toàn cấu trúc cơ bản
             # Đây là một phương pháp nâng cao hơn get_text("text")
@@ -81,7 +82,7 @@ class PDFProcessor:
                 "images": image_list
             })
         
-        print("Hoàn tất trích xuất nội dung từ file PDF.")
+        logging.info("Hoàn tất trích xuất nội dung từ file PDF.")
         return content_list
 
     def close(self):
@@ -89,4 +90,4 @@ class PDFProcessor:
         Đóng tài liệu PDF để giải phóng tài nguyên.
         """
         self.document.close()
-        print("Đã đóng file PDF.") 
+        logging.info("Đã đóng file PDF.") 
