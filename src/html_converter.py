@@ -1,7 +1,8 @@
 import os
 from typing import Dict, Any, List, Optional
 import re
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
+from bs4.element import NavigableString
 import logging
 
 # Giả định image_optimizer.py nằm cùng cấp và có thể import
@@ -41,7 +42,7 @@ class HTMLConverter:
                 for keyword in keywords:
                     # re.IGNORECASE để không phân biệt hoa thường
                     new_text = re.sub(r'\b' + re.escape(keyword) + r'\b', '', new_text, flags=re.IGNORECASE)
-                text_node.replace_with(new_text)
+                text_node.replace_with(new_text) # type: ignore
         return str(soup)
 
     def create_html_from_page(
@@ -83,8 +84,8 @@ class HTMLConverter:
             # Cập nhật src trong tag <img> tương ứng
             if i < len(img_tags):
                 relative_image_path = os.path.join("images", image_filename).replace("\\", "/")
-                img_tags[i]['src'] = relative_image_path
-                img_tags[i]['alt'] = f"Hình ảnh từ trang {page_number}"
+                img_tags[i]['src'] = relative_image_path # type: ignore
+                img_tags[i]['alt'] = f"Hình ảnh từ trang {page_number}" # type: ignore
         
         html_content = str(soup)
 

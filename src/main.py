@@ -33,46 +33,95 @@ def main():
         description="Công cụ dòng lệnh để chuyển đổi file PDF sang định dạng EPUB 3.0.",
         formatter_class=argparse.RawTextHelpFormatter
     )
-    # Tham số bắt buộc
-    parser.add_argument("input_file", help="Đường dẫn đến file PDF đầu vào.")
-    parser.add_argument("output_file", help="Đường dẫn để lưu file EPUB đầu ra. Phần mở rộng .epub sẽ được tự động thêm vào nếu thiếu.")
-    
-    # Tham số tùy chọn Sprint 2
+    # Chuyển các tham số bắt buộc thành tùy chọn để có thể nhập sau
     parser.add_argument(
-        "--skip-pages",
-        type=str,
-        default="",
-        help='Chuỗi các trang cần bỏ qua. \nVí dụ: "1,3,5-7" sẽ bỏ qua trang 1, 3, 5, 6, 7.'
+        "input_file",
+        nargs='?',  # Đánh dấu là có thể có hoặc không
+        default=None,
+        help="Đường dẫn đến file PDF đầu vào (có thể bỏ trống để nhập sau)."
     )
     parser.add_argument(
-        "--remove-keywords",
-        nargs='*',
-        default=[],
-        help='Danh sách các từ khóa cần loại bỏ khỏi văn bản, phân tách bởi dấu cách. \nVí dụ: --remove-keywords "Bản quyền" "Draft"'
-    )
-    parser.add_argument(
-        "--image-quality",
-        type=int,
-        default=85,
-        help="Chất lượng hình ảnh sau khi nén (1-100). Mặc định: 85."
-    )
-    parser.add_argument(
-        "--image-max-width",
-        type=int,
-        default=1024,
-        help="Chiều rộng tối đa cho hình ảnh (pixels). Mặc định: 1024."
-    )
-    parser.add_argument(
-        "--no-image-optimization",
-        action="store_true",
-        help="Tắt hoàn toàn tính năng tối ưu hóa hình ảnh."
+        "output_file",
+        nargs='?',  # Đánh dấu là có thể có hoặc không
+        default=None,
+        help="Đường dẫn để lưu file EPUB đầu ra (có thể bỏ trống để nhập sau)."
     )
     
     args = parser.parse_args()
 
     # --- Bắt đầu luồng thực thi ---
-    if not args.output_file.lower().endswith('.epub'):
-        args.output_file += '.epub'
+
+    # ===== PHẦN 1: LẤY THÔNG TIN TƯƠNG TÁC =====
+    
+    # Lấy và xác thực đường dẫn file input
+    input_path = args.input_file
+    while not input_path or not os.path.isfile(input_path):
+        if input_path:  # Trường hợp người dùng cung cấp đường dẫn nhưng không hợp lệ
+            logging.error(f"Lỗi: Không tìm thấy file tại '{input_path}'. Vui lòng thử lại.")
+        
+        try:
+            input_path = input("➡️  Vui lòng nhập đường dẫn đến file PDF: ").strip().replace('"', '')
+        except KeyboardInterrupt:
+            logging.info("\nĐã hủy bởi người dùng. Tạm biệt!")
+            sys.exit(0)
+            
+        if not input_path:
+            logging.warning("Đường dẫn không được để trống.")
+
+    # Lấy và xác thực đường dẫn file output
+    output_path = args.output_file
+    if not output_path:
+        default_output = os.path.splitext(os.path.basename(input_path))[0] + '.epub'
+        try:
+            user_output = input(f"➡️  Vui lòng nhập tên file EPUB output [Mặc định: {default_output}]: ").strip()
+            if not user_output:
+                user_output = default_output
+        except KeyboardInterrupt:
+            logging.info("\nĐã hủy bởi người dùng. Tạm biệt!")
+            sys.exit(0)
+            
+        output_path = user_output
+    
+    # Lấy các tùy chọn nâng cao một cách tương tác
+    try:
+        logging.info("-" * 20)
+        logging.info("Cấu hình tùy chọn nâng cao:")
+        
+        skip_pages_str = input("➡️  Nhập các trang cần bỏ qua (vd: 1,3,5-7) [Bỏ trống nếu không có]: ").strip()
+        
+        remove_keywords_str = input("➡️  Nhập các từ khóa cần xóa, cách nhau bởi dấu phẩy (,) [Bỏ trống nếu không có]: ").strip()
+        remove_keywords = [k.strip() for k in remove_keywords_str.split(',') if k.strip()]
+
+        # Cấu hình tối ưu hóa ảnh
+        optimizer = None
+        user_wants_optimization = input("➡️  Bạn có muốn tối ưu hóa hình ảnh không? (y/n) [Mặc định: y]: ").strip().lower()
+        if user_wants_optimization in ('', 'y', 'yes'):
+            logging.info("Tối ưu hóa hình ảnh được BẬT.")
+            try:
+                quality_str = input("    - Chất lượng ảnh (1-100) [Mặc định: 85]: ").strip()
+                quality = int(quality_str) if quality_str else 85
+            except ValueError:
+                logging.warning("Giá trị không hợp lệ, sử dụng chất lượng mặc định là 85.")
+                quality = 85
+
+            try:
+                width_str = input("    - Chiều rộng tối đa (pixels) [Mặc định: 1024]: ").strip()
+                max_width = int(width_str) if width_str else 1024
+            except ValueError:
+                logging.warning("Giá trị không hợp lệ, sử dụng chiều rộng mặc định là 1024.")
+                max_width = 1024
+            
+            optimizer = ImageOptimizer(quality=quality, max_width=max_width)
+        else:
+            logging.info("Tối ưu hóa hình ảnh đã được TẮT.")
+
+    except KeyboardInterrupt:
+        logging.info("\nĐã hủy bởi người dùng. Tạm biệt!")
+        sys.exit(0)
+
+    # Đảm bảo file output có phần mở rộng .epub
+    if not output_path.lower().endswith('.epub'):
+        output_path += '.epub'
 
     temp_dir = tempfile.mkdtemp(prefix="pdf2epub_")
     logging.info(f"Thư mục làm việc tạm thời: {temp_dir}")
@@ -80,27 +129,19 @@ def main():
     try:
         # 2. Xử lý PDF
         logging.info("-" * 20)
-        processor = PDFProcessor(pdf_path=args.input_file)
+        processor = PDFProcessor(pdf_path=input_path)
         all_pages_data = processor.extract_content_by_page()
 
         # Lọc các trang cần bỏ qua
-        pages_to_skip = parse_page_ranges(args.skip_pages)
+        pages_to_skip = parse_page_ranges(skip_pages_str)
         pages_to_process = [page for page in all_pages_data if page['page_number'] not in pages_to_skip]
         if pages_to_skip:
             logging.info(f"Đã bỏ qua các trang: {sorted(list(pages_to_skip))}")
 
         # 3. Chuyển đổi sang HTML
         logging.info("-" * 20)
-        book_title = os.path.splitext(os.path.basename(args.input_file))[0]
+        book_title = os.path.splitext(os.path.basename(input_path))[0]
         
-        # Khởi tạo optimizer nếu được bật
-        optimizer = None
-        if not args.no_image_optimization:
-            optimizer = ImageOptimizer(quality=args.image_quality, max_width=args.image_max_width)
-            logging.info(f"Tối ưu hóa hình ảnh được BẬT (chất lượng: {args.image_quality}, rộng tối đa: {args.image_max_width}px).")
-        else:
-            logging.info("Tối ưu hóa hình ảnh đã được TẮT.")
-
         converter = HTMLConverter(book_title=book_title, output_dir=temp_dir, image_optimizer=optimizer)
         converter.create_stylesheet()
         
@@ -108,12 +149,12 @@ def main():
         for page_data in pages_to_process:
             html_path = converter.create_html_from_page(
                 page_data, 
-                keywords_to_remove=args.remove_keywords
+                keywords_to_remove=remove_keywords
             )
             html_files.append(html_path)
         
-        if args.remove_keywords:
-            logging.info(f"Đã thực hiện loại bỏ các từ khóa: {args.remove_keywords}")
+        if remove_keywords:
+            logging.info(f"Đã thực hiện loại bỏ các từ khóa: {remove_keywords}")
 
         # 4. Đóng gói thành EPUB
         logging.info("-" * 20)
@@ -121,7 +162,7 @@ def main():
         packager.create_epub(
             html_files=html_files,
             resource_dir=temp_dir,
-            output_path=args.output_file
+            output_path=output_path
         )
 
         processor.close()

@@ -44,7 +44,7 @@ class EpubPackager:
         if os.path.exists(style_path):
             with open(style_path, 'r', encoding='utf-8') as f:
                 css_content = f.read()
-            stylesheet = epub.EpubItem(uid="style_main", file_name="style/main.css", media_type="text/css", content=css_content)
+            stylesheet = epub.EpubItem(uid="style_main", file_name="style/main.css", media_type="text/css", content=css_content.encode('utf-8'))
             self.book.add_item(stylesheet)
             items.append(stylesheet)
         else:

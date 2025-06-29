@@ -60,14 +60,14 @@ class PDFProcessor:
 
             # Trích xuất văn bản dưới dạng HTML để bảo toàn cấu trúc cơ bản
             # Đây là một phương pháp nâng cao hơn get_text("text")
-            text_content = page.get_text("html")
+            text_content = page.get_text("html") # type: ignore
 
             # Trích xuất hình ảnh
             image_list = []
-            images = page.get_images(full=True)
+            images = page.get_images(full=True) # type: ignore
             for img_index, img in enumerate(images):
                 xref = img[0]
-                base_image = self.document.extract_image(xref)
+                base_image = self.document.extract_image(xref) # type: ignore
                 image_bytes = base_image["image"]
                 image_ext = base_image["ext"]
                 image_list.append({
