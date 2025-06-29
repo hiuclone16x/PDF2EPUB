@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 import sys
+import logging
 
 from pdf_processor import PDFProcessor
 from html_converter import HTMLConverter
@@ -10,10 +11,23 @@ from epub_packager import EpubPackager
 from image_optimizer import ImageOptimizer
 from utils import parse_page_ranges
 
+def setup_logging():
+    """Cấu hình hệ thống logging để ghi ra file và console."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("conversion.log"),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
 def main():
     """
     Hàm chính điều phối toàn bộ quá trình chuyển đổi từ PDF sang EPUB.
     """
+    setup_logging()
+    
     # 1. Thiết lập và phân tích các tham số dòng lệnh
     parser = argparse.ArgumentParser(
         description="Công cụ dòng lệnh để chuyển đổi file PDF sang định dạng EPUB 3.0.",
@@ -61,11 +75,11 @@ def main():
         args.output_file += '.epub'
 
     temp_dir = tempfile.mkdtemp(prefix="pdf2epub_")
-    print(f"Thư mục làm việc tạm thời: {temp_dir}")
+    logging.info(f"Thư mục làm việc tạm thời: {temp_dir}")
 
     try:
         # 2. Xử lý PDF
-        print("-" * 20)
+        logging.info("-" * 20)
         processor = PDFProcessor(pdf_path=args.input_file)
         all_pages_data = processor.extract_content_by_page()
 
@@ -73,19 +87,19 @@ def main():
         pages_to_skip = parse_page_ranges(args.skip_pages)
         pages_to_process = [page for page in all_pages_data if page['page_number'] not in pages_to_skip]
         if pages_to_skip:
-            print(f"Đã bỏ qua các trang: {sorted(list(pages_to_skip))}")
+            logging.info(f"Đã bỏ qua các trang: {sorted(list(pages_to_skip))}")
 
         # 3. Chuyển đổi sang HTML
-        print("-" * 20)
+        logging.info("-" * 20)
         book_title = os.path.splitext(os.path.basename(args.input_file))[0]
         
         # Khởi tạo optimizer nếu được bật
         optimizer = None
         if not args.no_image_optimization:
             optimizer = ImageOptimizer(quality=args.image_quality, max_width=args.image_max_width)
-            print(f"Tối ưu hóa hình ảnh được BẬT (chất lượng: {args.image_quality}, rộng tối đa: {args.image_max_width}px).")
+            logging.info(f"Tối ưu hóa hình ảnh được BẬT (chất lượng: {args.image_quality}, rộng tối đa: {args.image_max_width}px).")
         else:
-            print("Tối ưu hóa hình ảnh đã được TẮT.")
+            logging.info("Tối ưu hóa hình ảnh đã được TẮT.")
 
         converter = HTMLConverter(book_title=book_title, output_dir=temp_dir, image_optimizer=optimizer)
         converter.create_stylesheet()
@@ -99,10 +113,10 @@ def main():
             html_files.append(html_path)
         
         if args.remove_keywords:
-            print(f"Đã thực hiện loại bỏ các từ khóa: {args.remove_keywords}")
+            logging.info(f"Đã thực hiện loại bỏ các từ khóa: {args.remove_keywords}")
 
         # 4. Đóng gói thành EPUB
-        print("-" * 20)
+        logging.info("-" * 20)
         packager = EpubPackager(book_title=book_title)
         packager.create_epub(
             html_files=html_files,
@@ -111,21 +125,21 @@ def main():
         )
 
         processor.close()
-        print("-" * 20)
-        print("🎉 Quá trình chuyển đổi đã hoàn tất thành công! 🎉")
+        logging.info("-" * 20)
+        logging.info("🎉 Quá trình chuyển đổi đã hoàn tất thành công! 🎉")
 
     except FileNotFoundError as e:
-        print(f"Lỗi: {e}", file=sys.stderr)
+        logging.error(f"Lỗi: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"Đã xảy ra một lỗi không mong muốn: {e}", file=sys.stderr)
-        print("Vui lòng kiểm tra lại file PDF đầu vào hoặc báo cáo lỗi.", file=sys.stderr)
+        logging.error(f"Đã xảy ra một lỗi không mong muốn: {e}", exc_info=True)
+        logging.error("Vui lòng kiểm tra lại file PDF đầu vào hoặc báo cáo lỗi.")
         sys.exit(1)
     finally:
         # 5. Dọn dẹp thư mục tạm
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
-            print(f"Đã dọn dẹp thư mục tạm thời: {temp_dir}")
+            logging.info(f"Đã dọn dẹp thư mục tạm thời: {temp_dir}")
 
 
 if __name__ == "__main__":

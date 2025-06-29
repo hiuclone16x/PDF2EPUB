@@ -1,4 +1,6 @@
 PyMuPDF
 EbookLib
 Pillow
-beautifulsoup4 
+beautifulsoup4
+pytest
+pytest-cov 

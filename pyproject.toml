@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf2epub_converter"
+version = "1.0.0"
+authors = [
+  { name="AI Assistant", email="assistant@example.com" },
+]
+description = "Một công cụ dòng lệnh để chuyển đổi file PDF sang định dạng EPUB 3.0."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Text Processing",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "PyMuPDF",
+    "EbookLib",
+    "Pillow",
+    "beautifulsoup4",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/user/repo" # Thay thế bằng URL repo thực tế
+
+[project.scripts]
+pdf2epub = "src.main:main" 
